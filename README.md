@@ -137,7 +137,7 @@ Response:
 - **15 Indian states**
 - **10 crops** (Rice, Wheat, Maize, Soybean, Sugarcane, Cotton, Mustard, Chickpea, Groundnut, Bajra)
 - **3 seasons** (Kharif, Rabi, Whole Year)
-- **Years** 2006–2023
+- **Years** 2000–2017
 
 Features: Area (ha), Rainfall (mm), Fertilizer (kg/ha), Temperature (°C), Irrigation (%)
 
