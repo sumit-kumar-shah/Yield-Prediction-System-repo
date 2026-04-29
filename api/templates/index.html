@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CropYield Prediction System</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1a202c; min-height: 100vh; }
+
+  header { background: #1a5276; color: #fff; padding: 18px 32px; display: flex; align-items: center; gap: 14px; }
+  <!-- header svg { width: 34px; height: 34px; } -->
+  header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: .02em; }
+  header span { font-size: .85rem; opacity: .75; margin-left: auto; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 28px 20px; display: grid; grid-template-columns: 380px 1fr; gap: 24px; }
+  @media (max-width: 860px) { .container { grid-template-columns: 1fr; } }
+
+  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .card h2 { font-size: 1rem; font-weight: 600; color: #1a5276; margin-bottom: 18px; border-bottom: 2px solid #eaf0fb; padding-bottom: 10px; }
+
+  label { display: block; font-size: .82rem; font-weight: 600; color: #4a5568; margin-bottom: 4px; margin-top: 14px; }
+  select, input[type=number], input[type=range] { width: 100%; padding: 8px 10px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: .9rem; background: #f7fafc; transition: border-color .2s; }
+  select:focus, input:focus { outline: none; border-color: #1a5276; background: #fff; }
+  input[type=range] { padding: 0; border: none; background: transparent; margin-top: 4px; accent-color: #1a5276; }
+  .range-row { display: flex; align-items: center; gap: 10px; }
+  .range-row span { min-width: 52px; font-weight: 700; font-size: .9rem; color: #1a5276; text-align: right; }
+
+  button { width: 100%; margin-top: 22px; padding: 12px; background: #1a5276; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; letter-spacing: .02em; }
+  button:hover { background: #154360; }
+  button:active { transform: scale(.98); }
+  button:disabled { background: #a0aec0; cursor: not-allowed; }
+
+  .result-box { display: none; margin-top: 20px; padding: 18px; background: #eaf6f0; border-radius: 10px; border-left: 4px solid #27ae60; }
+  .result-box.error { background: #fdecea; border-color: #e53e3e; }
+  .yield-val { font-size: 2.2rem; font-weight: 700; color: #1d6a3c; line-height: 1; }
+  .yield-unit { font-size: .85rem; color: #4a5568; margin-top: 4px; }
+  .conf { font-size: .82rem; color: #4a5568; margin-top: 6px; }
+  .badges { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .badge { padding: 4px 12px; border-radius: 20px; font-size: .78rem; font-weight: 600; background: #d1ecf1; color: #0c5460; }
+
+  .metrics-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric { background: #eaf0fb; border-radius: 8px; padding: 12px 14px; }
+  .metric .label { font-size: .75rem; color: #4a5568; font-weight: 600; }
+  .metric .value { font-size: 1.25rem; font-weight: 700; color: #1a5276; margin-top: 2px; }
+
+  .chart-wrap { position: relative; height: 280px; }
+  .tabs { display: flex; gap: 0; margin-bottom: 18px; border-radius: 8px; overflow: hidden; border: 1.5px solid #cbd5e0; }
+  .tab { flex: 1; padding: 8px; font-size: .82rem; font-weight: 600; background: #f7fafc; border: none; cursor: pointer; color: #4a5568; transition: background .15s; }
+  .tab.active { background: #1a5276; color: #fff; }
+
+  .history-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .history-table th { background: #eaf0fb; padding: 8px 10px; text-align: left; font-weight: 600; color: #1a5276; }
+  .history-table td { padding: 7px 10px; border-bottom: 1px solid #edf2f7; }
+  .history-table tr:hover td { background: #f7fafc; }
+  .empty { color: #a0aec0; text-align: center; padding: 30px; font-size: .9rem; }
+
+  #loading { display: none; text-align: center; padding: 8px; color: #1a5276; font-size: .9rem; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2.5px solid #cbd5e0; border-top-color: #1a5276; border-radius: 50%; animation: spin .7s linear infinite; margin-right: 6px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <!--<svg viewBox="0 0 48 48" fill="none">
+    <path d="M24 4C24 4 10 14 10 26a14 14 0 0028 0C38 14 24 4 24 4z" fill="#27ae60" opacity=".9"/>
+    <path d="M24 14v20M17 22l7-8 7 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>-->
+  <h1>CropYield Prediction System</h1>
+  <span id="model-badge">Loading model info...</span>
+</header>
+
+<div class="container">
+
+  <!-- LEFT: Input Form -->
+  <div class="card">
+    <h2>Prediction Inputs</h2>
+
+    <label>State</label>
+    <select id="state"></select>
+
+    <label>Crop</label>
+    <select id="crop"></select>
+
+    <label>Season</label>
+    <select id="season"></select>
+
+    <label>Year</label>
+    <div class="range-row">
+      <input type="range" id="year" min="2000" max="2030" value="2024" oninput="document.getElementById('year-val').textContent=this.value">
+      <span id="year-val">2024</span>
+    </div>
+
+    <label>Area (hectares)</label>
+    <input type="number" id="area" value="1200" min="1" step="10">
+
+    <label>Rainfall (mm)</label>
+    <div class="range-row">
+      <input type="range" id="rainfall" min="100" max="2000" value="650" step="10" oninput="document.getElementById('rain-val').textContent=this.value+' mm'">
+      <span id="rain-val">650 mm</span>
+    </div>
+
+    <label>Fertilizer (kg/ha)</label>
+    <div class="range-row">
+      <input type="range" id="fertilizer" min="0" max="400" value="180" step="5" oninput="document.getElementById('fert-val').textContent=this.value+' kg'">
+      <span id="fert-val">180 kg</span>
+    </div>
+
+    <label>Avg Temperature (°C)</label>
+    <input type="number" id="temp" value="24" min="5" max="50" step="0.5">
+
+    <label>Irrigation Coverage (%)</label>
+    <div class="range-row">
+      <input type="range" id="irrigation" min="0" max="100" value="70" oninput="document.getElementById('irr-val').textContent=this.value+'%'">
+      <span id="irr-val">70%</span>
+    </div>
+
+    <button id="predict-btn" onclick="runPrediction()">Predict Yield</button>
+    <div id="loading"><span class="spinner"></span>Running ensemble model...</div>
+
+    <div class="result-box" id="result-box">
+      <div class="yield-val" id="yield-val">—</div>
+      <div class="yield-unit">kg / hectare</div>
+      <div class="conf" id="conf-range"></div>
+      <div class="badges" id="badges"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Charts + History -->
+  <div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="metrics-row" id="metrics-row">
+        <div class="metric"><div class="label">Model R²</div><div class="value" id="m-r2">—</div></div>
+        <div class="metric"><div class="label">Test RMSE</div><div class="value" id="m-rmse">—</div></div>
+        <div class="metric"><div class="label">Algorithm</div><div class="value" style="font-size:.95rem" id="m-algo">Ensemble</div></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('trend')">Historical Trend</button>
+        <button class="tab" onclick="showTab('scatter')">Actual vs Predicted</button>
+        <button class="tab" onclick="showTab('importance')">Feature Importance</button>
+      </div>
+
+      <div id="tab-trend">
+        <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div id="tab-scatter" style="display:none">
+        <img id="scatter-img" src="/static/actual_vs_predicted.png" style="width:100%;border-radius:8px;margin-top:4px" onerror="this.style.display='none';document.getElementById('scatter-msg').style.display='block'">
+        <div id="scatter-msg" style="display:none" class="empty">Train model first to see this chart.</div>
+      </div>
+      <div id="tab-importance" style="display:none">
+        <img id="imp-img" src="/static/feature_importance.png" style="width:100%;border-radius:8px;margin-top:4px" onerror="this.style.display='none';document.getElementById('imp-msg').style.display='block'">
+        <div id="imp-msg" style="display:none" class="empty">Train model first to see this chart.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Prediction History</h2>
+      <div id="history-container"><div class="empty">No predictions yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let trendChart = null;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function boot() {
+  await loadDropdowns();
+  await loadMetrics();
+  await loadHistory();
+  await loadTrend();
+}
+
+async function loadDropdowns() {
+  try {
+    const r = await fetch('/crops');
+    const d = await r.json();
+    fill('state',  d.states);
+    fill('crop',   d.crops);
+    fill('season', d.seasons);
+  } catch(e) {}
+}
+
+function fill(id, items) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = items.map(v => `<option value="${v}">${v}</option>`).join('');
+  sel.addEventListener('change', loadTrend);
+}
+
+async function loadMetrics() {
+  try {
+    const r = await fetch('/metrics');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('m-r2').textContent    = d.test_r2.toFixed(4);
+    document.getElementById('m-rmse').textContent  = Math.round(d.test_rmse).toLocaleString();
+    document.getElementById('m-algo').textContent  = (d.models_included||['Ensemble']).join('+');
+    document.getElementById('model-badge').textContent = `Model R² ${d.test_r2.toFixed(3)} | ${(d.models_included||[]).length} models`;
+  } catch(e) {
+    document.getElementById('model-badge').textContent = 'Model not trained yet';
+  }
+}
+
+async function loadTrend() {
+  const state  = document.getElementById('state').value;
+  const crop   = document.getElementById('crop').value;
+  const season = document.getElementById('season').value;
+  if (!state || !crop || !season) return;
+  try {
+    const r = await fetch(`/trend?state=${encodeURIComponent(state)}&crop=${encodeURIComponent(crop)}&season=${encodeURIComponent(season)}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    drawTrend(d.years, d.yields, `${crop} — ${state} (${season})`);
+  } catch(e) {}
+}
+
+function drawTrend(years, yields, label) {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: years,
+      datasets: [{
+        label: label,
+        data: yields,
+        borderColor: '#1a5276',
+        backgroundColor: 'rgba(26,82,118,0.1)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: '#27ae60',
+        fill: true,
+        tension: 0.35,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { font: { size: 12 } } } },
+      scales: {
+        x: { title: { display: true, text: 'Year' } },
+        y: { title: { display: true, text: 'Yield (kg/ha)' }, beginAtZero: false }
+      }
+    }
+  });
+}
+
+// ── Prediction ────────────────────────────────────────────────────────────────
+async function runPrediction() {
+  const btn = document.getElementById('predict-btn');
+  const loading = document.getElementById('loading');
+  const box = document.getElementById('result-box');
+
+  btn.disabled = true;
+  loading.style.display = 'block';
+  box.style.display = 'none';
+
+  const body = {
+    state:                document.getElementById('state').value,
+    crop:                 document.getElementById('crop').value,
+    season:               document.getElementById('season').value,
+    year:                 parseInt(document.getElementById('year').value),
+    area_hectares:        parseFloat(document.getElementById('area').value),
+    rainfall_mm:          parseFloat(document.getElementById('rainfall').value),
+    fertilizer_kg_per_ha: parseFloat(document.getElementById('fertilizer').value),
+    avg_temp_c:           parseFloat(document.getElementById('temp').value),
+    irrigation_pct:       parseFloat(document.getElementById('irrigation').value),
+  };
+
+  try {
+    const r = await fetch('/predict', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Prediction failed');
+
+    document.getElementById('yield-val').textContent = d.predicted_yield_kg_per_ha.toLocaleString();
+    document.getElementById('conf-range').textContent =
+      `Confidence range: ${d.confidence_low.toLocaleString()} – ${d.confidence_high.toLocaleString()} kg/ha`;
+    document.getElementById('badges').innerHTML = `
+      <span class="badge">R² ${d.model_r2}</span>
+      <span class="badge">RMSE ${Math.round(d.model_rmse).toLocaleString()}</span>
+    `;
+    box.className = 'result-box';
+    box.style.display = 'block';
+    await loadHistory();
+  } catch(e) {
+    document.getElementById('yield-val').textContent = 'Error';
+    document.getElementById('conf-range').textContent = e.message;
+    box.className = 'result-box error';
+    box.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    loading.style.display = 'none';
+  }
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const r = await fetch('/history?limit=10');
+    const d = await r.json();
+    const rows = d.predictions;
+    const cont = document.getElementById('history-container');
+    if (!rows.length) { cont.innerHTML = '<div class="empty">No predictions yet.</div>'; return; }
+    cont.innerHTML = `<div style="overflow-x:auto"><table class="history-table">
+      <thead><tr><th>Time</th><th>State</th><th>Crop</th><th>Year</th><th>Yield (kg/ha)</th></tr></thead>
+      <tbody>${rows.map(p=>`<tr>
+        <td>${p.ts ? p.ts.substring(11,19) : '—'}</td>
+        <td>${p.state}</td><td>${p.crop}</td><td>${p.year}</td>
+        <td><strong>${(p.predicted||0).toLocaleString()}</strong></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch(e) {}
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function showTab(name) {
+  ['trend','scatter','importance'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((btn,i) => {
+    btn.classList.toggle('active', ['trend','scatter','importance'][i] === name);
+  });
+}
+
+boot();
+</script>
+</body>
+</html>
